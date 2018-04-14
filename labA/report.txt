@@ -1,0 +1,28 @@
+Assignment 1
+++++++++++++
+The jackknife function was made parallel by using the specified methods from the
+lab PM. The file was built with O2 (optimizations) enabled and ran on 8 HECs. To
+prevent Garbage Collection from tampering the result the RTS flag A1000M was
+enabled at runtime. The resulting functions are:
+    - pjackknife (par and pseq):
+      This function implements granularity control but there was no direct sign of
+      improvements when letting it spawn sparks as much as it wanted.
+    - rjackknife (rpar and rseq):
+      In this function the Eval Monad is used (or well, rpar from it). This is
+      basically a Monad version or pjackknife.
+    - sjackknife (Strategies):
+      This method uses Strategies and thus also has somewhat built-in
+      granularity control. It was a bit slower than the parjackknife.
+    - parjackknife (Par Monad):
+      The Par Monad appears to be the fastest way for parallel work for this
+      task as it on average returned a result after 145.2ms whilst the regular
+      (and non-parallel) one ran at 660.7ms.
+
+Assignment 2
+++++++++++++
+On both parallel version of merge sort (one using par and pseq and the other one
+using the Eval Monad) there was no significant speedup recorded. Both implement
+granularity control. The reason for no speedup is probably due to the nature of
+the merge sort function, as the most expensive part of it is finding the middle
+of the array and splitting it into two. Therefore the function by design is
+rather sequential. 
