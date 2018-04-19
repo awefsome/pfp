@@ -29,11 +29,17 @@ resamples k xs =
 jackknife :: ([a] -> b) -> [a] -> [b]
 jackknife f = map f . resamples 500
 
-pjackknife :: Int -> ([a] -> b) -> [a] -> [b]
-pjackknife d f = parmap d f . resamples 500
+pjackknife :: ([a] -> b) -> [a] -> [b]
+pjackknife f = parmap f . resamples 500
 
-rjackknife :: Int -> ([a] -> b) -> [a] -> [b]
-rjackknife d f = rparmap d f . resamples 500
+pjackknife' :: Int -> ([a] -> b) -> [a] -> [b]
+pjackknife' d f = parmap' d f . resamples 500
+
+rjackknife :: ([a] -> b) -> [a] -> [b]
+rjackknife f = rparmap f . resamples 500
+
+rjackknife' :: Int -> ([a] -> b) -> [a] -> [b]
+rjackknife' d f = rparmap' d f . resamples 500
 
 sjackknife :: ([a] -> b) -> [a] -> [b]
 sjackknife f = sparmap f . resamples 500
@@ -41,27 +47,44 @@ sjackknife f = sparmap f . resamples 500
 parjackknife :: NFData b => ([a] -> b) -> [a] -> [b]
 parjackknife f = pMap f . resamples 500
 
-parmap :: Int -> ([a] -> b) -> [[a]] -> [b]
-parmap d f []     = []
-parmap 0 f xs     = map f xs
-parmap d f (x:xs) = par h $ pseq t $ h : t
-    where h     = f x
-          t     = parmap (d-1) f xs
+-- 1.a--par, pseq
+parmap :: ([a] -> b) -> [[a]] -> [b]
+parmap f []     = []
+parmap f (x:xs) = par h (pseq t (h:t))
+    where h = f x
+          t = parmap f xs
 
-rparmap :: Int -> ([a] -> b) -> [[a]] -> [b]
-rparmap d f xs = runEval $ rMap d f xs
+parmap' :: Int -> ([a] -> b) -> [[a]] -> [b]
+parmap' d f []     = []
+parmap' 0 f xs     = map f xs
+parmap' d f (x:xs) = par h (pseq t (h:t))
+          where 
+            h     = f x
+            t     = parmap' (d-1) f xs
 
-rMap :: Int -> ([a] -> b) -> [[a]] -> Eval [b]
-rMap d f []     = return []
-rMap 0 f xs     = return $ map f xs
-rMap d f (x:xs) = do
+--1.b-- Eval Monad
+rparmap :: ([a] -> b) -> [[a]] -> [b]
+rparmap f []     = []
+rparmap f (x:xs) = runEval $ do
+                    h <- rpar (f x)
+                    t <- rseq (rparmap f xs)
+                    return (h:t)
+
+
+rparmap' :: Int -> ([a] -> b) -> [[a]] -> [b]
+rparmap' d f []     = []
+rparmap' 0 f xs     = map f xs
+rparmap' d f (x:xs) = runEval $ do
                 h <- rpar (f x)
-                t <- rMap (d-1) f xs
-                return (h : t)
+                t <- rseq (rparmap' (d-1) f xs)
+                return $ h:t
 
+
+--1.c-- Stratigy implementation
 sparmap :: ([a] -> b) -> [[a]] -> [b]
 sparmap f xs = map f xs `using` parList rseq
 
+--1.d-- Par Monad
 pMap :: NFData b => ([a] -> b) -> [[a]] -> [b]
 pMap f []     = []
 pMap f (x:xs) = runPar $ do
@@ -93,7 +116,7 @@ merge (h:hs) (t:ts) | h < t = h : merge hs     (t:ts)
 parmerge :: Ord a => Int -> [a] -> [a]
 parmerge d (x:[]) = [x]
 parmerge 0 xs     = mergesort xs
-parmerge d xs = par h $ pseq t $ merge h t
+parmerge d xs = par h (pseq t (merge h t))
     where
         h        = parmerge (d-1) hs
         t        = parmerge (d-1) ts
@@ -134,10 +157,12 @@ main = do
   putStrLn $ "jack mean max:  " ++ show (maximum j)
   defaultMain
         [ bench "jackknife" (nf (jackknife  mean) rs)
-        , bench "pjackknife (infinite spawn)" (nf (pjackknife (-1) mean) rs)
-        , bench "pjackknife (d = 8)" (nf (pjackknife 8 mean) rs)
-        , bench "rjackknife (infinite spawn)" (nf (rjackknife (-1) mean) rs)
-        , bench "rjackknife (d = 8)" (nf (rjackknife 8 mean) rs)
+        , bench "pjackknife' (infinite spawn)" (nf (pjackknife' (-1) mean) rs)
+        , bench "pjackknife" (nf (pjackknife mean) rs)
+        , bench "pjackknife' (d = 8)" (nf (pjackknife' 8 mean) rs)
+        , bench "rjackknife' '(infinite spawn)" (nf (rjackknife' (-1) mean) rs)
+        , bench "rjackknife" (nf (rjackknife mean) rs)
+        , bench "rjackknife' (d = 8)" (nf (rjackknife' 8 mean) rs)
         , bench "sjackknife" (nf (sjackknife mean) rs)
         , bench "parjackknife" (nf (sjackknife mean) rs)
         , bench "mergesort" (nf mergesort rs)
