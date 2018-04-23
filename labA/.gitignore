@@ -1,3 +1,5 @@
 given
 *.hi
 *.o
+LabA13
+*.eventlog
