@@ -17,4 +17,10 @@ let diff (x: i32) (y: i32) : i32 = i32.abs(x - y)
 let process (x: []i32) (y: []i32) : i32 =
     reduce max 0 (map2 diff x y)
 
+let process_idx [n] (x: [n]i32) (y: [n]i32) : (i32, i32) =
+    reduce (\(x, i) (y, j) ->
+            if x < y then (y, j) else (x, i))
+        (i32.smallest, -1)
+        (zip (map2 diff x y) (iota n ))
+
 let main (x: []i32) (y: []i32) : i32 = process x y
