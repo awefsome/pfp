@@ -8,9 +8,9 @@
 let in_circle (x: f32) (y: f32) : f32 =
     if (x - 1f32)**2f32 + (y - 1f32)**2f32 <= 1f32 then 1f32 else 0f32
 
-let montecarlopi [n] (xs: [n]f32) (ys: [n]f32) : f32 =
+let estimate_pi [n] (xs: [n]f32) (ys: [n]f32) : f32 =
     4f32 * ((reduce (+) 0f32 (map2 in_circle xs ys)) / f32.i32(n))
 
 
 
-let main (xs: []f32) (ys: []f32) : f32 = montecarlopi xs ys
+let main (xs: []f32) (ys: []f32) : f32 = estimate_pi xs ys

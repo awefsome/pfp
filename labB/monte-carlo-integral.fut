@@ -31,14 +31,14 @@ let montecarlointegral [n] (xs: [n]f32)
                            : f32 =
     (4f32 / f32.i32(n)) * (reduce (+) 0f32 (map2 f xs ys))
 
-let main (xs: []f32) (ys: []f32) : f32 = montecarlointegral xs ys ftest
+let diff (x: f32) (y: f32) : f32 = f32.abs(x - y)
 
--- ==
--- entry: integral_sobol
--- input { 100 }
--- input { 1000 }
--- input { 10000 }
--- input { 100000 }
--- input { 1000000 }
+let process_idx [n] (x: [n]f32) (y: [n]f32) : (f32, i32) =
+    reduce (\(x, i) (y, j) ->
+            if x > y then (y, j) else (x, i))
+        (f32.largest, -1)
+        (zip (map2 diff x y) (iota n ))
 
-entry integral_sobol (n:i32) : f32 = R.run n
+-- let main (xs: []f32) (ys: []f32) : f32 = montecarlointegral xs ys ftest
+let main (n: i32) : (f32, i32) =
+    process_idx (map (\x -> R.run x) (iota n)) (map (\_ -> 983.21f32) (iota n))
