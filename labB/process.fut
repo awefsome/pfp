@@ -1,13 +1,13 @@
 -- Given two signals, compute the maximum, pair-wise difference
 -- ==
 -- tags {100 1000 10000 100000 1000000 5000000 10000000}
--- compiled input @data-100-0.dat
--- compiled input @data-1000-0.dat
--- compiled input @data-10000-0.dat
--- compiled input @data-100000-0.dat
--- compiled input @data-1000000-0.dat
--- compiled input @data-5000000-0.dat
--- compiled input @data-10000000-0.dat
+-- compiled input @data-process-100-0.dat
+-- compiled input @data-process-1000-0.dat
+-- compiled input @data-process-10000-0.dat
+-- compiled input @data-process-100000-0.dat
+-- compiled input @data-process-1000000-0.dat
+-- compiled input @data-process-5000000-0.dat
+-- compiled input @data-process-10000000-0.dat
 
 let max (x: i32) (y: i32) : i32 =
     if x > y then x else y
