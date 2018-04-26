@@ -1,3 +1,6 @@
 *.dat
 process
-process.c
+*.c
+monte-carlo
+monte-carlo-pi
+monte-carlo-integral
