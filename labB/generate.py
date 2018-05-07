@@ -14,8 +14,13 @@ def main():
                         , [0, 2]
                         ]
 
+    sizes_segmented  = [100, 10000, 1000000]
+    types_segmented  = ["i32", "bool"]
+    bounds_segmented = None
+
     generate(sizes_process, types_process, bounds_process, "process")
     generate(sizes_montecarlo, types_montecarlo, bounds_montecarlo, "montecarlo")
+    generate(sizes_segmented, types_segmented, bounds_segmented, "segmented")
 
 def generate(sizes, types, bounds, set):
     for size in sizes:
@@ -24,8 +29,10 @@ def generate(sizes, types, bounds, set):
                   , "-b"
                   ]
         for i in range(len(types)):
-            command += [ "--" + types[i] + "-bounds=" + str(bounds[i][0]) + ":" + str(bounds[i][1])
-                       , "-g"
+            if(bounds != None):
+                command += ["--" + types[i] + "-bounds=" + str(bounds[i][0]) + ":" + str(bounds[i][1])]
+
+            command += [ "-g"
                        , "[" + str(size) + "]" + types[i]
                        ]
 

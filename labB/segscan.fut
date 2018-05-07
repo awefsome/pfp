@@ -14,13 +14,14 @@ let segreduce [n] 't (op: t -> t -> t) (ne: t) (arr: [n](t, bool)): []t =
     let is         = map2 put_in bs offsets
     in take (offsets[n-1]) (scatter (copy segscanned) is segscanned)
 
+-- ==
 -- tags { 100 10000 1000000 1000000000 }
-
+-- compiled input @data-segmented-100.dat
+-- compiled input @data-segmented-10000.dat
+-- compiled input @data-segmented-1000000.dat
 
 let main [n] (xs: [n]i32) (bs: [n]bool) : []i32 =
-    -- segreduce (+) 0 (zip xs bs)
-    segscan (+) 0 (zip xs bs)
+    --segreduce (+) 0 (zip xs bs)
+    --segscan (+) 0 (zip xs bs)
     --scan (+) 0 xs
-
---let main [n] (xs: [n]i32) (bs: [n]bool) : i32 =
-    --reduce (+) 0 xs
+    --[reduce (+) 0 xs]
