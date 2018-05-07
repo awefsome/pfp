@@ -25,16 +25,30 @@ module rand_i8 = uniform_int_distribution i8 rng_engine
 
 let rand = rand_f32.rand (0f32, 1f32)
 
+let chunksof 'a (w: i32) (h: i32) (ls: []a) : [w][]a =
+    let grabber p = unsafe take w (drop ((p-1)*w) ls)
+    in map grabber (iota h)
+
 -- Create a new grid of a given size.  Also produce an identically
 -- sized array of RNG states.
 entry random_grid (seed: i32) (w: i32) (h: i32)
                 : ([w][h]rng_engine.rng, [w][h]spin) =
-  ...
+    let (rs, xs) = unzip (map (\r ->
+            let (rng, x) = rand_i8.rand (0i8, 1i8) r
+            in (rng, (0i8-1i8)**x))
+            (rng_engine.split_rng (w * h) (rng_engine.rng_from_seed [seed])))
+    in (chunksof w h rs, chunksof w h xs)
 
 -- Compute $\Delta_e$ for each spin in the grid, using wraparound at
 -- the edges.
 entry deltas [w][h] (spins: [w][h]spin): [w][h]i8 =
-  ...
+    let updow = map2 (\xs ys -> map2 (+) xs ys)
+                    (rotate@1 1 spins) (rotate@1 (0-1) spins)
+    let lerig = map2 (\xs ys -> map2 (+) xs ys)
+                    (rotate@0 1 spins) (rotate@0 (0-1) spins)
+    in map2 (\cs us -> map2 (\c u -> 2i8 * c * u) cs us) spins
+        (map2 (\xs ys -> map2 (+) xs ys) updow lerig)
+
 
 -- The sum of all deltas of a grid.  The result is a measure of how
 -- ordered the grid is.
@@ -45,7 +59,17 @@ entry delta_sum [w][h] (spins: [w][h]spin): i32 =
 entry step [w][h] (abs_temp: f32) (samplerate: f32)
                   (rngs: [w][h]rng_engine.rng) (spins: [w][h]spin)
                 : ([w][h]rng_engine.rng, [w][h]spin) =
-  ...
+    let delta_es = deltas spins
+    let abrngs   = map (\rs ->
+        map (\r ->
+            let (rng, a) = rand r
+            let (rng, b) = rand rng
+            in (rng, a, b)) rs) rngs
+    in unzip (map3 (\abr delta_e spin ->
+        map3 (\(rng, a, b) d c ->
+            if a < samplerate && (d < -d || b < f32.exp(f32.i8(0i8-d) / abs_temp))
+            then (rng, 0i8-c)
+            else (rng, c)) abr delta_e spin) abrngs delta_es spins)
 
 import "/futlib/colour"
 
@@ -58,6 +82,11 @@ entry render [w][h] (spins: [w][h]spin): [w][h]argb.colour =
   in map1 (map1 pixel) spins
 
 -- | Just for benchmarking.
+-- ==
+-- tags { 10 100 1000 5000 }
+-- compiled input { 25f32 0.25f32 1000 1000 10 }
+-- compiled input { 25f32 0.25f32 1000 1000 100 }
+-- compiled input { 25f32 0.25f32 1000 1000 1000 }
 let main (abs_temp: f32) (samplerate: f32)
          (w: i32) (h: i32) (n: i32): [w][h]spin =
   (loop (rngs, spins) = random_grid 1337 w h for _i < n do
