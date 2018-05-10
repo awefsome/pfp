@@ -254,7 +254,7 @@ solve_refined(M) ->
 	true ->
 	    M;
 	false ->
-	    solve_one(parallel_guesses(M))
+	    solve_one(guesses(M))
     end.
 
 solve_one([]) ->
