@@ -1,0 +1,71 @@
+====================================================
+Assigenment, Running BenchMark in Parallel - Task 1:
+====================================================
+Serial benchmarks:
+==================
+> sudoku:benchmarks().
+{92494776,
+ [{wildcat,0.78},
+  {diabolical,78.78061},
+  {vegard_hanssen,138.06263},
+  {challenge,12.16023},
+  {challenge1,628.5424499999999},
+  {extreme,16.38044},
+  {seventeen,50.24137}]}
+
+Parallel Benachmarcks:
+======================
+> sudoku:benchmarks().
+{55771525,
+ [{wildcat,3.28009},
+  {diabolical,62.87171},
+  {vegard_hanssen,110.14300999999999},
+  {challenge,20.91057},
+  {challenge1,557.71525},
+  {extreme,25.590700000000002},
+  {seventeen,52.42143}]}
+
+¨
+===============================================
+Assigenment, Parallelizing the Solver - Task 2:
+===============================================
+Serial benchmarks:
+==================
+> sudoku:benchmarks().
+{89887000,
+ [{wildcat,0.78},
+  {diabolical,63.96},
+  {vegard_hanssen,182.36},
+  {challenge,14.35},
+  {challenge1,566.29},
+  {extreme,12.63},
+  {seventeen,58.5}]}
+
+Parallel benchmarks (Parallel refining of Rows):
+================================================
+> sudoku:benchmarks().
+{88702000,
+ [{wildcat,1.25},
+  {diabolical,51.79},
+  {vegard_hanssen,146.79},
+  {challenge,15.29},
+  {challenge1,584.23},
+  {extreme,18.87},
+  {seventeen,68.8}]}
+
+===============================================
+Assigenment, Parallelizing the Solver - Task 3:
+===============================================
+Parallel BenchMarks (Parallel guessing)
+> sudoku:benchmarks().
+{171226119,
+ [{wildcat,0.94},
+  {diabolical,124.9498},
+  {vegard_hanssen,305.60790999999995},
+  {challenge,17.46988},
+  {challenge1,1118.67443},
+  {extreme,29.329819999999998},
+  {seventeen,115.28932}]}
+
+
+
