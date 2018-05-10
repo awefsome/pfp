@@ -39,6 +39,6 @@ let process_idx [n] (x: [n]f32) (y: [n]f32) : (f32, i32) =
         (f32.largest, -1)
         (zip (map2 diff x y) (iota n ))
 
--- let main (xs: []f32) (ys: []f32) : f32 = montecarlointegral xs ys ftest
-let main (n: i32) : (f32, i32) =
-    process_idx (map (\x -> R.run x) (iota n)) (map (\_ -> 983.21f32) (iota n))
+let main (xs: []f32) (ys: []f32) : f32 = montecarlointegral xs ys ftest
+--let main (n: i32) : (f32, i32) =
+    --process_idx (map (\x -> R.run x) (iota n)) (map (\_ -> 983.21f32) (iota n))

@@ -4,3 +4,7 @@ process
 monte-carlo
 monte-carlo-pi
 monte-carlo-integral
+ising.py
+ising
+segscan-*
+segscan

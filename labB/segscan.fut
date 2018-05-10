@@ -15,7 +15,7 @@ let segreduce [n] 't (op: t -> t -> t) (ne: t) (arr: [n](t, bool)): []t =
     in take (offsets[n-1]) (scatter (copy segscanned) is segscanned)
 
 -- ==
--- tags { 100 10000 1000000 1000000000 }
+-- tags { 100 10000 1000000 }
 -- compiled input @data-segmented-100.dat
 -- compiled input @data-segmented-10000.dat
 -- compiled input @data-segmented-1000000.dat
