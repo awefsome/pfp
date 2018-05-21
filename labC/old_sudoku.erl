@@ -241,91 +241,33 @@ update_nth(I,X,Xs) ->
 %% solve a puzzle
 
 solve(M) ->
-    Filled = refine(fill(M)),
-    Pid = self(),
-    [W|Ws] = [spawn(fun() -> worker(Pid) end) || _ <- lists:seq(1, erlang:system_info(schedulers)-1)],
-    Ref = make_ref(),
-    W ! {Filled, Ref},
-    receive
-      Ref ->
-        Solution = pool(Ws, [W|Ws]),
-        Solution
+    Solution = solve_refined(refine(fill(M))),
+    case valid_solution(Solution) of
+	true ->
+	    Solution;
+	false ->
+	    exit({invalid_solution,Solution})
     end.
 
-worker(Parent) ->
-  receive
-    {M, Ref} ->
-      Parent ! Ref,
-
-      case catch solve_refined(Parent, M) of
-        {'EXIT', no_solution} ->
-          Parent ! {done, self()};
-        Solution ->
-          case valid_solution(Solution) of
-            true ->
-              Parent ! {solution, Solution};
-            false ->
-              Parent ! {done, self()}
-          end
-      end
-  end,
-  worker(Parent).
-
-solve_refined(Parent, M) ->
+solve_refined(M) ->
     case solved(M) of
-    true ->
-        M;
-    false ->
-        solve_one(Parent, guesses(M))
+	true ->
+	    M;
+	false ->
+	    solve_one(guesses(M))
     end.
 
-solve_one(_, []) ->
+solve_one([]) ->
     exit(no_solution);
-
-solve_one(Parent, [M]) ->
-    solve_refined(Parent, M);
-
-solve_one(Parent, [M|Ms]) ->
-    Parent ! {speculate, M, self()},
-    receive
-      {yes} -> solve_one(Parent, Ms);
-      {no} ->
-        case catch solve_refined(Parent, M) of
-        {'EXIT', no_solution} ->
-            solve_one(Parent, Ms);
-        Solution ->
-            Solution
-        end
+solve_one([M]) ->
+    solve_refined(M);
+solve_one([M|Ms]) ->
+    case catch solve_refined(M) of
+	{'EXIT',no_solution} ->
+	    solve_one(Ms);
+	Solution ->
+	    Solution
     end.
-
-pool(Available, All) ->
-  receive
-    {solution, Solution} ->
-      [exit(Child, done)|| Child <- All],
-      Solution;
-    {speculate, M, Brancher} ->
-        case Available of
-          [] -> Brancher ! {no},
-                pool([], All);
-          [X|Xs] -> Ref = make_ref(),
-                    X ! {M, Ref},
-                    receive
-                      Ref -> 
-                          Brancher ! {yes},
-                          pool(Xs, All)
-                    after 100 ->
-                        Brancher ! {no},
-                        pool([], All)
-                    end
-        end;
-    {done, Pid} ->
-        case lists:usort([Pid|Available]) == lists:usort(All) of
-          true -> exit(workers_done);
-          false ->
-            pool([Pid|Available], All)
-        end
-  end.
-
 
 %% benchmarks
 
@@ -375,5 +317,3 @@ valid_row(Row) ->
 
 valid_solution(M) ->
     valid_rows(M) andalso valid_rows(transpose(M)) andalso valid_rows(blocks(M)).
-
-
