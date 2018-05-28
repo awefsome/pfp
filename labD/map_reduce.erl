@@ -16,10 +16,13 @@
 %% the result.
 
 map_reduce_seq(Map,Reduce,Input) ->
-    Mapped = [{K2,V2}
-	      || {K,V} <- Input,
-		 {K2,V2} <- Map(K,V)],
+    Mapped = map_seq(Map,Input),
     reduce_seq(Reduce,Mapped).
+
+map_seq(Map,Input) ->
+    [{K2, V2}
+    || {K,V} <- Input,
+    {K2,V2} <- Map(K,V)].
 
 reduce_seq(Reduce,KVs) ->
     [KV || {K,Vs} <- group(lists:sort(KVs)),
@@ -44,17 +47,26 @@ map_reduce_dist_wp(Map,M,Reduce,R,Input) ->
 
 
 
+
 map_reduce_dist_par(Map,M,Reduce,R,Input) ->
     Nodes = nodes() ,
     NumNodes = length(Nodes),
-    Splits = split_into(length(Nodes), Input),
+    Splits = split_into(NumNodes, Input),
+    ChunksPerNode = M div NumNodes,
     Mappeds =
-    lists:flatten([rpc:call(Node, map_reduce, map_par, [Map,M/NumNodes,Reduce,Split])
-     || Node <- Nodes,
-     Split <- Splits]),
+    lists:append([rpc:call(Node, map_reduce, map_par, [Map,ChunksPerNode,R,Split])
+     || {Node, Split} <- lists:zip(Nodes,Splits)]),
     Reduceds =
-    lists:flatten([rpc:call(Node, map_reduce, reduce_par, [Reduce,R,Mappeds])
-     || Node <- Nodes]),
+    [ rpc:call( Node
+                , map_reduce
+                , reduce_par
+                , [ Reduce
+                  , I * ChunksPerNode
+                  , (I+1) * ChunksPerNode
+                  , Mappeds
+                  ]
+                )
+        || {Node, I} <- lists:zip(Nodes, lists:seq(0,NumNodes-1))],
     lists:sort(lists:flatten(Reduceds)).
 
 map_par(Map,M,R,Input) ->
@@ -65,26 +77,17 @@ map_par(Map,M,R,Input) ->
 	 || Split <- Splits],
 	[receive {Pid,L} -> L end || Pid <- Mappers].
 
-reduce_par(Reduce,R,Mappeds) ->
+reduce_par(Reduce,LR,UR,Mappeds) ->
     Parent = self(),
+    Indexes = lists:seq(LR,UR-1),
     Reducers =
 	[spawn_reducer(Parent,Reduce,I,Mappeds)
-	 || I <- lists:seq(0,R-1)],
+	 || I <- Indexes],
 	[receive {Pid,L} -> L end || Pid <- Reducers].
 
 map_reduce_par(Map,M,Reduce,R,Input) ->
-    Parent = self(),
-    Splits = split_into(M,Input),
-    Mappers =
-	[spawn_mapper(Parent,Map,R,Split)
-	 || Split <- Splits],
-    Mappeds =
-	[receive {Pid,L} -> L end || Pid <- Mappers],
-    Reducers =
-	[spawn_reducer(Parent,Reduce,I,Mappeds)
-	 || I <- lists:seq(0,R-1)],
-    Reduceds =
-	[receive {Pid,L} -> L end || Pid <- Reducers],
+    Mappeds = map_par(Map,M,R,Input),
+    Reduceds = reduce_par(Reduce,0,R,Mappeds),
     lists:sort(lists:flatten(Reduceds)).
 
 spawn_mapper(Parent,Map,R,Split) ->
@@ -110,4 +113,6 @@ spawn_reducer(Parent,Reduce,I,Mappeds) ->
 		 {J,KVs} <- Mapped,
 		 I==J,
 		 KV <- KVs],
-    spawn_link(fun() -> Parent ! {self(),reduce_seq(Reduce,Inputs)} end).
+    spawn_link(fun() ->
+        Parent ! {self(),reduce_seq(Reduce,Inputs)}
+    end).
