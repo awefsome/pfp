@@ -50,8 +50,112 @@ map_reduce_par(Map,M,Reduce,R,Input) ->
 	[receive {Pid,L} -> L end || Pid <- Reducers],
     lists:sort(lists:flatten(Reduceds)).
 
+map_reduce_dist_par(Map, M, Reduce, R, Input) ->
+    Parent = self(),
+    Nodes = [node() | nodes()],
+    UseNode = [lists:nth(I rem length(Nodes) + 1, Nodes) || I <- lists:seq(1, M)],
+    Splits = split_into(M,Input),
+    Mappers =
+	[spawn_mapper(Node,Parent,Map,R,Split)
+	 || {Node, Split} <- lists:zip(UseNode, Splits)],
+    Mappeds =
+	[receive {Pid,L} -> L end || Pid <- Mappers],
+    Rseq = lists:seq(0,R-1),
+    UseNode = [lists:nth((I + 1) rem length(Nodes) + 1, Nodes) || I <- Rseq],
+    Reducers =
+	[spawn_reducer(Node, Parent,Reduce,I,Mappeds)
+	 || {Node,I} <- lists:zip(UseNode, Rseq)],
+    Reduceds =
+	[receive {Pid,L} -> L end || Pid <- Reducers],
+    lists:sort(lists:flatten(Reduceds)).
+
+% Workpool
+map_reduce_dist_wp(Map,M,Reduce,R,Input) ->
+    Splits = split_into(M, Input),
+    MapFuns = [fun() ->
+                    [{erlang:phash2(K2,R),{K2,V2}} || {K,V} <- Split,
+                        {K2,V2} <- Map(K,V)] end
+        || Split <- Splits],
+    Mappeds = pool(MapFuns),
+    Parent = self(),
+    Nodes = [node() | nodes()],
+    Rseq = lists:seq(0,R-1),
+    UseNode = [lists:nth((I + 1) rem length(Nodes) + 1, Nodes) || I <- Rseq],
+    Reducers =
+	[spawn_reducer(Node, Parent,Reduce,I,Mappeds)
+	 || {Node,I} <- lists:zip(UseNode, Rseq)],
+    Reduceds =
+	[receive {Pid,L} -> L end || Pid <- Reducers],
+    lists:sort(lists:flatten(Reduceds)).
+    %ReduceFuns = [fun() -> reduce_seq(Reduce,Data) end ||
+    %    I <- lists:seq(0, R-1),
+    %    Data = get_reduce_i(I, Mappeds)],
+    %Reduced = pool(ReduceFuns),
+    %lists:sort(lists:flatten(Reduced)).
+
+% Fault Tolerant
+% TODO
+
+pool(Funs) ->
+    Parent = self(),
+    Nodes = [node() | nodes()],
+    Workers = [spawn_link(Node, map_reduce, workers, [Parent]) || Node <- Nodes],
+    FunsMap = lists:zip(lists:seq(1, length(Funs)), Funs),
+    pool(maps:new(), length(FunsMap), FunsMap, Workers).
+
+pool(Results, 0, [], Workers) ->
+    _ = [Worker ! exit || Worker <- Workers],
+    maps:values(Results);
+
+pool(Results, Pending, Todo, Workers) ->
+    receive
+        {request, Pid} ->
+            case Todo of
+                [] -> Pid ! exit,
+                    pool(Results, Pending, Todo, Workers);
+                [Job | Jobs] -> Pid ! {work, Job},
+                    pool(Results, Pending, Jobs, Workers)
+            end;
+        {done, Id, Res} ->
+            case maps:is_key(Id, Results) of
+                true -> pool(Results, Pending, Todo, Workers);
+                false ->
+                    pool(maps:put(Id, Res, Results), Pending - 1, Todo, Workers)
+                    %case lists:keytake(Id, 1, Todo) of
+                    %    {value, _, Jobs} ->
+                    %        pool(maps:put(Id, Res, Results), Pending - 1, Jobs, Workers);
+                    %    false ->
+                    %        pool(Results, Pending, Todo, Workers)
+                    %end
+            end
+    end.
+
+workers(Relay) ->
+    Workers = [spawn_link(map_reduce, worker, [Relay]) || _ <- lists:seq(0, 7)],
+    receive
+        exit -> [Worker ! exit || Worker <- Workers]
+    end.
+
+worker(Relay) ->
+    Relay ! {request, self()},
+    receive
+        {work, {Id,Fun}} ->
+            Relay ! {done, Id, Fun()},
+            worker(Relay);
+        exit -> []
+    end.
+
+get_reduce_i(I, Mappeds) ->
+    [KV || Mapped <- Mappeds,
+		{J,KVs} <- Mapped,
+		I==J,
+		KV <- KVs].
+
 spawn_mapper(Parent,Map,R,Split) ->
-    spawn_link(fun() ->
+    spawn_mapper(node(), Parent, Map, R, Split).
+
+spawn_mapper(Node, Parent, Map, R, Split) ->
+    spawn_link(Node, fun() ->
 			Mapped = [{erlang:phash2(K2,R),{K2,V2}}
 				  || {K,V} <- Split,
 				     {K2,V2} <- Map(K,V)],
@@ -68,9 +172,12 @@ split_into(N,L,Len) ->
     [Pre|split_into(N-1,Suf,Len-(Len div N))].
 
 spawn_reducer(Parent,Reduce,I,Mappeds) ->
+    spawn_reducer(node(), Parent, Reduce, I, Mappeds).
+
+spawn_reducer(Node, Parent, Reduce, I, Mappeds) ->
     Inputs = [KV
 	      || Mapped <- Mappeds,
 		 {J,KVs} <- Mapped,
 		 I==J,
 		 KV <- KVs],
-    spawn_link(fun() -> Parent ! {self(),reduce_seq(Reduce,Inputs)} end).
+    spawn_link(Node, fun() -> Parent ! {self(),reduce_seq(Reduce,Inputs)} end).
