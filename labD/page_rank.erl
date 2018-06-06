@@ -16,25 +16,25 @@ reduce(Url,Ns) ->
     [{Url,lists:sum(Ns)}].
 
 page_rank() ->
-    {ok,web} = dets:open_file(web,[{file,"web.dat"}]),
+    dets:open_file(web,[{file,"web.dat"}]),
     Urls = dets:foldl(fun({K,_},Keys)->[K|Keys] end,[],web),
     map_reduce:map_reduce_seq(fun map/2, fun reduce/2,
 			      [{Url,ok} || Url <- Urls]).
 
 page_rank_par() ->
-    {ok,web} = dets:open_file(web,[{file,"web.dat"}]),
+    dets:open_file(web,[{file,"web.dat"}]),
     Urls = dets:foldl(fun({K,_},Keys)->[K|Keys] end,[],web),
     map_reduce:map_reduce_par(fun map/2, 32, fun reduce/2, 32,
 			      [{Url,ok} || Url <- Urls]).
 
 page_rank_dist_par() ->
-    {ok,web} = dets:open_file(web,[{file,"web.dat"}]),
+    dets:open_file(web,[{file,"web.dat"}]),
     Urls = dets:foldl(fun({K,_},Keys)->[K|Keys] end,[],web),
     map_reduce:map_reduce_dist_par(fun map/2, 32, fun reduce/2, 32,
 			      [{Url,ok} || Url <- Urls]).
 
 page_rank_dist_wp() ->
-    {ok,web} = dets:open_file(web,[{file,"web.dat"}]),
+    dets:open_file(web,[{file,"web.dat"}]),
     Urls = dets:foldl(fun({K,_},Keys)->[K|Keys] end,[],web),
     map_reduce:map_reduce_dist_wp(fun map/2, 32, fun reduce/2, 32,
 			      [{Url,ok} || Url <- Urls]).

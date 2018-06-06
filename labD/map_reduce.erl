@@ -73,25 +73,27 @@ map_reduce_dist_par(Map, M, Reduce, R, Input) ->
 map_reduce_dist_wp(Map,M,Reduce,R,Input) ->
     Splits = split_into(M, Input),
     MapFuns = [fun() ->
-                    [{erlang:phash2(K2,R),{K2,V2}} || {K,V} <- Split,
-                        {K2,V2} <- Map(K,V)] end
-        || Split <- Splits],
+                    Mapped = [{erlang:phash2(K2,R),{K2,V2}}
+                                || {K,V} <- Split,
+                                    {K2,V2} <- Map(K,V)],
+                    group(lists:sort(Mapped))
+               end
+              || Split <- Splits],
     Mappeds = pool(MapFuns),
-    Parent = self(),
-    Nodes = [node() | nodes()],
-    Rseq = lists:seq(0,R-1),
-    UseNode = [lists:nth((I + 1) rem length(Nodes) + 1, Nodes) || I <- Rseq],
-    Reducers =
-	[spawn_reducer(Node, Parent,Reduce,I,Mappeds)
-	 || {Node,I} <- lists:zip(UseNode, Rseq)],
-    Reduceds =
-	[receive {Pid,L} -> L end || Pid <- Reducers],
-    lists:sort(lists:flatten(Reduceds)).
-    %ReduceFuns = [fun() -> reduce_seq(Reduce,Data) end ||
-    %    I <- lists:seq(0, R-1),
-    %    Data = get_reduce_i(I, Mappeds)],
-    %Reduced = pool(ReduceFuns),
-    %lists:sort(lists:flatten(Reduced)).
+    %Parent = self(),
+    %Nodes = [node() | nodes()],
+    %UseNode = [lists:nth(I rem length(Nodes) + 1, Nodes) || I <- lists:seq(1, M)],
+    %Splits = split_into(M,Input),
+    %Mappers =
+	%[spawn_mapper(Node,Parent,Map,R,Split)
+	% || {Node, Split} <- lists:zip(UseNode, Splits)],
+    %Mappeds =
+	%[receive {Pid,L} -> L end || Pid <- Mappers],
+    Datas = lists:map(fun(I) -> get_reduce_i(Mappeds, I) end, lists:seq(0, R-1)),
+    ReduceFuns = [fun() -> reduce_seq(Reduce,Data) end ||
+        Data <- Datas],
+    Reduced = pool(ReduceFuns),
+    lists:sort(lists:flatten(Reduced)).
 
 % Fault Tolerant
 % TODO
@@ -103,8 +105,7 @@ pool(Funs) ->
     FunsMap = lists:zip(lists:seq(1, length(Funs)), Funs),
     pool(maps:new(), length(FunsMap), FunsMap, Workers).
 
-pool(Results, 0, [], Workers) ->
-    _ = [Worker ! exit || Worker <- Workers],
+pool(Results, 0, _, _) ->
     maps:values(Results);
 
 pool(Results, Pending, Todo, Workers) ->
@@ -114,19 +115,18 @@ pool(Results, Pending, Todo, Workers) ->
                 [] -> Pid ! exit,
                     pool(Results, Pending, Todo, Workers);
                 [Job | Jobs] -> Pid ! {work, Job},
-                    pool(Results, Pending, Jobs, Workers)
+                    pool(Results, Pending, Jobs ++ [Job], Workers)
             end;
         {done, Id, Res} ->
             case maps:is_key(Id, Results) of
                 true -> pool(Results, Pending, Todo, Workers);
                 false ->
-                    pool(maps:put(Id, Res, Results), Pending - 1, Todo, Workers)
-                    %case lists:keytake(Id, 1, Todo) of
-                    %    {value, _, Jobs} ->
-                    %        pool(maps:put(Id, Res, Results), Pending - 1, Jobs, Workers);
-                    %    false ->
-                    %        pool(Results, Pending, Todo, Workers)
-                    %end
+                    case lists:keytake(Id, 1, Todo) of
+                        {value, _, Jobs} ->
+                            pool(maps:put(Id, Res, Results), Pending - 1, Jobs, Workers);
+                        false ->
+                            pool(Results, Pending, Todo, Workers)
+                    end
             end
     end.
 
@@ -145,10 +145,11 @@ worker(Relay) ->
         exit -> []
     end.
 
-get_reduce_i(I, Mappeds) ->
-    [KV || Mapped <- Mappeds,
+get_reduce_i(Mappeds, I) ->
+    [KV ||
+        Mapped <- Mappeds,
 		{J,KVs} <- Mapped,
-		I==J,
+		I == J,
 		KV <- KVs].
 
 spawn_mapper(Parent,Map,R,Split) ->
