@@ -80,15 +80,6 @@ map_reduce_dist_wp(Map,M,Reduce,R,Input) ->
                end
               || Split <- Splits],
     Mappeds = pool(MapFuns),
-    %Parent = self(),
-    %Nodes = [node() | nodes()],
-    %UseNode = [lists:nth(I rem length(Nodes) + 1, Nodes) || I <- lists:seq(1, M)],
-    %Splits = split_into(M,Input),
-    %Mappers =
-	%[spawn_mapper(Node,Parent,Map,R,Split)
-	% || {Node, Split} <- lists:zip(UseNode, Splits)],
-    %Mappeds =
-	%[receive {Pid,L} -> L end || Pid <- Mappers],
     Datas = lists:map(fun(I) -> get_reduce_i(Mappeds, I) end, lists:seq(0, R-1)),
     ReduceFuns = [fun() -> reduce_seq(Reduce,Data) end ||
         Data <- Datas],
@@ -105,7 +96,7 @@ pool(Funs) ->
     FunsMap = lists:zip(lists:seq(1, length(Funs)), Funs),
     pool(maps:new(), length(FunsMap), FunsMap, Workers).
 
-pool(Results, 0, _, _) ->
+pool(Results, 0, [], Workers) ->
     maps:values(Results);
 
 pool(Results, Pending, Todo, Workers) ->
@@ -115,18 +106,19 @@ pool(Results, Pending, Todo, Workers) ->
                 [] -> Pid ! exit,
                     pool(Results, Pending, Todo, Workers);
                 [Job | Jobs] -> Pid ! {work, Job},
-                    pool(Results, Pending, Jobs ++ [Job], Workers)
+                    pool(Results, Pending, Jobs, Workers)
             end;
         {done, Id, Res} ->
             case maps:is_key(Id, Results) of
                 true -> pool(Results, Pending, Todo, Workers);
                 false ->
-                    case lists:keytake(Id, 1, Todo) of
-                        {value, _, Jobs} ->
-                            pool(maps:put(Id, Res, Results), Pending - 1, Jobs, Workers);
-                        false ->
-                            pool(Results, Pending, Todo, Workers)
-                    end
+                    pool(maps:put(Id, Res, Results), Pending - 1, Todo, Workers)
+                    %case lists:keytake(Id, 1, Todo) of
+                    %    {value, _, Jobs} ->
+                    %        pool(maps:put(Id, Res, Results), Pending - 1, Jobs, Workers);
+                    %    false ->
+                    %        pool(Results, Pending, Todo, Workers)
+                    %end
             end
     end.
 
