@@ -106,19 +106,19 @@ pool(Results, Pending, Todo, Workers) ->
                 [] -> Pid ! exit,
                     pool(Results, Pending, Todo, Workers);
                 [Job | Jobs] -> Pid ! {work, Job},
-                    pool(Results, Pending, Jobs, Workers)
+                    pool(Results, Pending, Jobs ++ [Job], Workers)
             end;
         {done, Id, Res} ->
             case maps:is_key(Id, Results) of
                 true -> pool(Results, Pending, Todo, Workers);
                 false ->
-                    pool(maps:put(Id, Res, Results), Pending - 1, Todo, Workers)
-                    %case lists:keytake(Id, 1, Todo) of
-                    %    {value, _, Jobs} ->
-                    %        pool(maps:put(Id, Res, Results), Pending - 1, Jobs, Workers);
-                    %    false ->
-                    %        pool(Results, Pending, Todo, Workers)
-                    %end
+                    %pool(maps:put(Id, Res, Results), Pending - 1, Todo, Workers)
+                    case lists:keytake(Id, 1, Todo) of
+                        {value, _, Jobs} ->
+                            pool(maps:put(Id, Res, Results), Pending - 1, Jobs, Workers);
+                        false ->
+                            pool(Results, Pending, Todo, Workers)
+                    end
             end
     end.
 
